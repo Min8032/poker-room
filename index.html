@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>扑克房间</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ========== 大厅 ========== -->
+  <section id="lobby" class="screen">
+    <div class="lobby-card">
+      <h1 class="logo">🃏 扑克房间</h1>
+      <p class="slogan">一副牌 · 三五好友 · 点开就玩</p>
+
+      <label class="field">
+        <span>你的昵称</span>
+        <input id="nickname" maxlength="8" placeholder="最多 8 个字" autocomplete="off">
+      </label>
+
+      <label class="field">
+        <span>房间密码</span>
+        <input id="roomCode" maxlength="12" placeholder="4~12 位数字或字母" autocomplete="off">
+      </label>
+
+      <div class="btn-row">
+        <button id="btnCreate" class="btn primary">创建房间</button>
+        <button id="btnJoin" class="btn">加入房间</button>
+      </div>
+
+      <p id="lobbyMsg" class="msg"></p>
+      <p class="tip">把本页链接发到微信群，朋友输入相同房间密码即可同桌玩牌</p>
+    </div>
+  </section>
+
+  <!-- ========== 牌桌 ========== -->
+  <section id="table" class="screen hidden">
+    <header class="topbar">
+      <div class="room-meta">
+        <span id="roomInfo">房间 ----</span>
+        <span id="roundInfo"></span>
+      </div>
+      <button id="btnLeave" class="btn small ghost">离开</button>
+    </header>
+
+    <!-- 其他玩家（上方区域） -->
+    <div id="opponents" class="opponents"></div>
+
+    <!-- 状态提示 -->
+    <div id="statusBar" class="status-bar"></div>
+
+    <!-- 我自己（下方区域） -->
+    <div id="me" class="me">
+      <div id="meInfo" class="me-info"></div>
+      <div id="myCards" class="my-cards"></div>
+      <div class="btn-row">
+        <button id="btnFlip" class="btn primary">翻牌</button>
+        <button id="btnReveal" class="btn">明牌</button>
+        <button id="btnRestart" class="btn warn">进入下一局</button>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script src="js/peerjs.min.js"></script>
+<script src="js/net.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
