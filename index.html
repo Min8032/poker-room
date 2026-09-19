@@ -31,6 +31,23 @@
         <button id="btnJoin" class="btn">加入房间</button>
       </div>
 
+      <!-- 建房选项（仅创建房间时生效） -->
+      <div class="room-opts">
+        <div class="opt">
+          <span class="opt-label">发牌数</span>
+          <div class="seg" id="dealSeg">
+            <button type="button" class="seg-btn" data-n="1">1 张</button>
+            <button type="button" class="seg-btn" data-n="2">2 张</button>
+            <button type="button" class="seg-btn" data-n="3">3 张</button>
+          </div>
+        </div>
+        <label class="opt opt-check">
+          <input type="checkbox" id="optJokers" checked>
+          <span>包含大小王</span>
+        </label>
+        <p class="opt-tip">以上选项仅创建房间时生效</p>
+      </div>
+
       <p id="lobbyMsg" class="msg"></p>
       <p class="tip">把本页链接发到微信群，朋友输入相同房间密码即可同桌玩牌</p>
     </div>

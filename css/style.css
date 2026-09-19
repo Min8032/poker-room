@@ -52,6 +52,38 @@ html, body {
 .msg { min-height: 22px; text-align: center; font-size: 14px; color: #ffb74d; margin-top: 12px; }
 .tip { text-align: center; font-size: 12px; color: #7ba98d; margin-top: 14px; line-height: 1.6; }
 
+/* ===== 建房选项 ===== */
+.room-opts {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px dashed rgba(255, 255, 255, .15);
+}
+.opt { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.opt-label { font-size: 13px; color: #9fd4b4; flex: none; }
+.seg {
+  flex: 1;
+  display: flex;
+  border: 1px solid rgba(255, 255, 255, .2);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.seg-btn {
+  flex: 1;
+  padding: 8px 0;
+  font-size: 14px;
+  color: #cfe9da;
+  background: rgba(255, 255, 255, .06);
+  border: none;
+  cursor: pointer;
+  user-select: none;
+}
+.seg-btn + .seg-btn { border-left: 1px solid rgba(255, 255, 255, .15); }
+.seg-btn.active { background: #2e7d4f; color: #fff; font-weight: 600; }
+.opt-check { cursor: pointer; user-select: none; margin-bottom: 4px; }
+.opt-check input { width: 18px; height: 18px; accent-color: #2e7d4f; cursor: pointer; }
+.opt-check span { font-size: 14px; color: #cfe9da; }
+.opt-tip { font-size: 12px; color: #7ba98d; text-align: center; margin: 0; }
+
 /* ===== 按钮 ===== */
 .btn-row { display: flex; gap: 12px; justify-content: center; }
 

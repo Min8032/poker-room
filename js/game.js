@@ -23,6 +23,8 @@
     myCards: [],       // 我的手牌，如 ['AS','KD','3C']
     faceUp: [false, false, false], // 我本地翻牌状态（不会发给任何人）
     revealed: false,   // 明牌状态：true = 我的牌对全房间可见
+    cardCount: 3,      // 每人发牌数（房主设置，随房间状态同步）
+    withJokers: true,  // 是否含大小王（房主设置，随房间状态同步）
   };
 
   /* ---------- 房主权威数据（仅房主使用） ---------- */
@@ -30,6 +32,8 @@
     players: new Map(),  // id -> {id,name,emoji,ready,hasCards}
     order: [],           // 加入顺序
     remaining: [],       // 牌堆剩余（用于中途加入者补发）
+    cardCount: 3,        // 每人发牌数（建房选项）
+    withJokers: true,    // 是否含大小王（建房选项）
   };
 
   /* ---------- DOM ---------- */
@@ -38,6 +42,7 @@
     lobby: $('lobby'), table: $('table'),
     nickname: $('nickname'), roomCode: $('roomCode'),
     btnCreate: $('btnCreate'), btnJoin: $('btnJoin'), lobbyMsg: $('lobbyMsg'),
+    dealSeg: $('dealSeg'), optJokers: $('optJokers'),
     roomInfo: $('roomInfo'), roundInfo: $('roundInfo'), btnLeave: $('btnLeave'),
     opponents: $('opponents'), statusBar: $('statusBar'),
     meInfo: $('meInfo'), myCards: $('myCards'),
@@ -47,13 +52,13 @@
   /* ---------- 工具 ---------- */
   const cardSrc = code => CARD_DIR + code + '.png';
 
-  function buildDeck() {
+  function buildDeck(withJokers) {
     const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K'];
     const suits = ['S', 'H', 'D', 'C'];
     const d = [];
     for (const r of ranks) for (const s of suits) d.push(r + s);
-    d.push('1J', '2J');           // 大小王
-    return d;                     // 54 张
+    if (withJokers) d.push('1J', '2J');   // 大小王（可选）
+    return d;                             // 54 张（不含王则 52 张）
   }
 
   function shuffle(a) {           // Fisher-Yates + 加密随机数
@@ -72,9 +77,12 @@
   /* =========================================================
    * 房主逻辑
    * ========================================================= */
-  function hostSetup(code, name) {
+  function hostSetup(code, name, opts) {
     S.isHost = true; S.code = code; S.round = 0;
     H.players.clear(); H.order = []; H.remaining = [];
+    H.cardCount = (opts && opts.cardCount) || 3;
+    H.withJokers = !opts || opts.withJokers !== false;
+    S.cardCount = H.cardCount; S.withJokers = H.withJokers;
     hostAddPlayer(Net.myId, name);
 
     Net.on('join', (id, pname) => {
@@ -84,9 +92,9 @@
         return;
       }
       hostAddPlayer(id, pname);
-      // 中途加入：若已开局且牌够，立即补发 3 张
-      if (S.round > 0 && H.remaining.length >= 3) {
-        const cards = H.remaining.splice(0, 3);
+      // 中途加入：若已开局且牌够，立即补发
+      if (S.round > 0 && H.remaining.length >= H.cardCount) {
+        const cards = H.remaining.splice(0, H.cardCount);
         const p = H.players.get(id);
         p.hasCards = true;
         Net.sendTo(id, { t: 'deal', cards, round: S.round });
@@ -105,7 +113,7 @@
     Net.on('reveal', (id, cards, on) => {
       const p = H.players.get(id);
       if (!p) return;
-      p.revealed = (on && Array.isArray(cards)) ? cards.slice(0, 3) : null;
+      p.revealed = (on && Array.isArray(cards)) ? cards.slice(0, H.cardCount) : null;
       hostBroadcastRoster();
     });
 
@@ -130,6 +138,8 @@
       t: 'roster',
       round: S.round,
       host: Net.myId,
+      cardCount: H.cardCount,        // 建房选项同步给所有人（渲染背面牌数用）
+      jokers: H.withJokers,
       players: H.order.map(id => {
         const p = H.players.get(id);
         return { id: p.id, name: p.name, emoji: p.emoji, ready: p.ready, hasCards: p.hasCards, revealed: p.revealed || null };
@@ -152,16 +162,16 @@
 
   function hostStartRound() {
     S.round++;
-    const deck = shuffle(buildDeck());
+    const deck = shuffle(buildDeck(H.withJokers));
     for (const id of H.order) {
-      const cards = deck.splice(0, 3);
+      const cards = deck.splice(0, H.cardCount);
       const p = H.players.get(id);
       p.hasCards = true;
       p.ready = false;
       p.revealed = null;                       // 新局默认不明牌
       if (id === Net.myId) {                   // 房主自己的牌
         S.myCards = cards;
-        S.faceUp = [false, false, false];
+        S.faceUp = cards.map(() => false);
         S.revealed = false;
       } else {
         Net.sendTo(id, { t: 'deal', cards, round: S.round });
@@ -180,7 +190,7 @@
     Net.on('roster', applyRoster);
     Net.on('deal', data => {
       S.myCards = data.cards;
-      S.faceUp = [false, false, false];        // 新牌默认盖着
+      S.faceUp = data.cards.map(() => false);  // 新牌默认盖着
       S.revealed = false;                      // 新局默认不明牌
       render();
     });
@@ -195,12 +205,15 @@
     S.round = data.round;
     S.players = data.players;
     S.hostId = data.host || '';
+    if (data.cardCount) S.cardCount = data.cardCount;
+    if (typeof data.jokers === 'boolean') S.withJokers = data.jokers;
     render();
   }
 
   function render() {
     el.roomInfo.textContent = '房间 ' + S.code + '（点我复制）';
-    el.roundInfo.textContent = S.round > 0 ? '第 ' + S.round + ' 局' : '未开始';
+    el.roundInfo.textContent = (S.round > 0 ? '第 ' + S.round + ' 局' : '未开始') +
+      ' · ' + S.cardCount + '张/人' + (S.withJokers ? ' · 含大小王' : ' · 无大小王');
 
     renderOpponents();
     renderMe();
@@ -236,7 +249,7 @@
           (p.hasCards
             ? (p.revealed
                 ? p.revealed.map(c => '<img class="reveal" src="' + cardSrc(c) + '" alt="' + c + '">').join('')
-                : '<img src="' + cardSrc(CARD_BACK) + '"><img src="' + cardSrc(CARD_BACK) + '"><img src="' + cardSrc(CARD_BACK) + '">')
+                : Array.from({ length: S.cardCount }, () => '<img src="' + cardSrc(CARD_BACK) + '">').join(''))
             : '') +
         '</div>';
       el.opponents.appendChild(div);
@@ -334,6 +347,7 @@
     Net.destroy();
     S.code = ''; S.round = 0; S.players = [];
     S.myCards = []; S.faceUp = [false, false, false]; S.revealed = false;
+    S.cardCount = 3; S.withJokers = true;
     el.btnCreate.disabled = false;
     el.btnJoin.disabled = false;
     showScreen('lobby');
@@ -352,13 +366,34 @@
     return { name, code };
   }
 
+  /* ---------- 大厅：建房选项 ---------- */
+  let lobbyDealCount = 3;   // 当前选中的发牌数（1~3）
+
+  function syncDealSeg() {
+    el.dealSeg.querySelectorAll('.seg-btn').forEach(b => {
+      b.classList.toggle('active', parseInt(b.dataset.n, 10) === lobbyDealCount);
+    });
+  }
+
+  el.dealSeg.addEventListener('click', e => {
+    const btn = e.target.closest('.seg-btn');
+    if (!btn) return;
+    lobbyDealCount = parseInt(btn.dataset.n, 10) || 3;
+    syncDealSeg();
+    localStorage.setItem('poker_dealcount', String(lobbyDealCount));
+  });
+
+  el.optJokers.addEventListener('change', () => {
+    localStorage.setItem('poker_jokers', el.optJokers.checked ? '1' : '0');
+  });
+
   el.btnCreate.addEventListener('click', async () => {
     const v = readInputs(); if (!v) return;
     el.btnCreate.disabled = true; el.btnJoin.disabled = true;
     el.lobbyMsg.textContent = '创建中…';
     try {
       await Net.createRoom(v.code);
-      hostSetup(v.code, v.name);
+      hostSetup(v.code, v.name, { cardCount: lobbyDealCount, withJokers: el.optJokers.checked });
       showScreen('table');
       render();
     } catch (e) {
@@ -442,5 +477,9 @@
   /* ---------- 初始化 ---------- */
   el.nickname.value = localStorage.getItem('poker_name') || '';
   el.roomCode.value = localStorage.getItem('poker_code') || '';
+  lobbyDealCount = parseInt(localStorage.getItem('poker_dealcount') || '3', 10);
+  if (lobbyDealCount < 1 || lobbyDealCount > 3) lobbyDealCount = 3;
+  syncDealSeg();
+  el.optJokers.checked = localStorage.getItem('poker_jokers') !== '0';
   showScreen('lobby');
 })();
