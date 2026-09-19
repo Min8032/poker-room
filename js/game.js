@@ -25,6 +25,7 @@
     revealed: false,   // 明牌状态：true = 我的牌对全房间可见
     cardCount: 3,      // 每人发牌数（房主设置，随房间状态同步）
     withJokers: true,  // 是否含大小王（房主设置，随房间状态同步）
+    sigLost: false,    // 与匹配服务器的连接是否中断（自动重连中）
   };
 
   /* ---------- 房主权威数据（仅房主使用） ---------- */
@@ -84,6 +85,8 @@
     H.withJokers = !opts || opts.withJokers !== false;
     S.cardCount = H.cardCount; S.withJokers = H.withJokers;
     hostAddPlayer(Net.myId, name);
+
+    Net.on('sig', ok => { S.sigLost = !ok; render(); });   // 信令断线提示
 
     Net.on('join', (id, pname) => {
       if (H.players.size >= MAX_PLAYERS) {
@@ -187,6 +190,7 @@
   function clientSetup(code) {
     S.isHost = false; S.code = code; S.round = 0;
 
+    Net.on('sig', ok => { S.sigLost = !ok; render(); });   // 信令断线提示
     Net.on('roster', applyRoster);
     Net.on('deal', data => {
       S.myCards = data.cards;
@@ -313,6 +317,10 @@
   }
 
   function renderStatus() {
+    if (S.sigLost) {
+      el.statusBar.textContent = '⚠️ 与服务器连接中断，自动重连中…（恢复前新朋友进不来）';
+      return;
+    }
     if (S.round === 0) {
       el.statusBar.textContent = S.isHost
         ? '你是房主，人齐后点"开始发牌"'
@@ -347,7 +355,7 @@
     Net.destroy();
     S.code = ''; S.round = 0; S.players = [];
     S.myCards = []; S.faceUp = [false, false, false]; S.revealed = false;
-    S.cardCount = 3; S.withJokers = true;
+    S.cardCount = 3; S.withJokers = true; S.sigLost = false;
     el.btnCreate.disabled = false;
     el.btnJoin.disabled = false;
     showScreen('lobby');

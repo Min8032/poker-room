@@ -45,6 +45,22 @@ window.Net = (() => {
     });
   }
 
+  // 信令通道自愈：与 PeerJS 云的 WebSocket 断开后自动重连（重连成功前新房客进不来）
+  function watchSignal() {
+    let iv = null;
+    peer.on('disconnected', () => {
+      emit('sig', false);
+      clearInterval(iv);
+      let tries = 0;
+      iv = setInterval(() => {
+        if (!peer || peer.destroyed) { clearInterval(iv); return; }
+        if (!peer.disconnected) { clearInterval(iv); emit('sig', true); return; }
+        if (++tries > 20) { clearInterval(iv); return; }   // 约 1 分钟后放弃
+        try { peer.reconnect(); } catch (e) {}
+      }, 3000);
+    });
+  }
+
   /* ---------- 房主 ---------- */
   function createRoom(code) {
     return new Promise((resolve, reject) => {
@@ -52,7 +68,7 @@ window.Net = (() => {
       let settled = false;
       peer = newPeer(PREFIX + code);
 
-      peer.on('open', id => { settled = true; resolve(id); });
+      peer.on('open', id => { settled = true; watchSignal(); resolve(id); });
       peer.on('error', err => {
         if (!settled) {
           settled = true;
@@ -95,6 +111,7 @@ window.Net = (() => {
       });
 
       peer.on('open', () => {
+        watchSignal();
         hostConn = peer.connect(PREFIX + code, { reliable: true });
 
         hostConn.on('open', () => {
