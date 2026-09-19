@@ -100,18 +100,10 @@ window.Net = (() => {
     return new Promise((resolve, reject) => {
       hostMode = false;
       let settled = false;
+      let retries = 0;
       peer = newPeer();
 
-      peer.on('error', err => {
-        if (!settled) {
-          settled = true;
-          if (err.type === 'peer-unavailable') reject(new Error('房间不存在，请检查房间密码'));
-          else reject(new Error('网络错误：' + err.type));
-        }
-      });
-
-      peer.on('open', () => {
-        watchSignal();
+      const connectToHost = () => {
         hostConn = peer.connect(PREFIX + code, { reliable: true });
 
         hostConn.on('open', () => {
@@ -128,7 +120,26 @@ window.Net = (() => {
           else if (data.t === 'closed') emit('closed');
         });
 
-        watchDead(hostConn, () => emit('closed'));
+        // 加入成功后断线才算"房间关闭"；重试中的失败由 error 处理
+        watchDead(hostConn, () => { if (settled) emit('closed'); });
+      };
+
+      peer.on('error', err => {
+        if (settled) return;
+        // 房间注册可能有延迟/抖动：peer-unavailable 时隔 2 秒重试，最多 3 次
+        if (err.type === 'peer-unavailable' && retries < 3) {
+          retries++;
+          setTimeout(connectToHost, 2000);
+          return;
+        }
+        settled = true;
+        if (err.type === 'peer-unavailable') reject(new Error('房间不存在，请检查房间密码（或让房主确认页面还开着）'));
+        else reject(new Error('网络错误：' + err.type));
+      });
+
+      peer.on('open', () => {
+        watchSignal();
+        connectToHost();
       });
     });
   }

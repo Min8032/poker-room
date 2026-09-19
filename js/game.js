@@ -75,6 +75,17 @@
   const me = () => S.players.find(p => p.id === Net.myId);
   const myReady = () => { const m = me(); return m ? m.ready : false; };
 
+  /* ---------- 房主防锁屏（屏幕常亮，尽力而为） ---------- */
+  let wakeLock = null;
+  async function keepAwake() {
+    if (!('wakeLock' in navigator)) return;
+    try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
+  }
+  // 页面切走会自动释放唤醒锁，切回来时重新申请
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && S.isHost && S.code) keepAwake();
+  });
+
   /* =========================================================
    * 房主逻辑
    * ========================================================= */
@@ -85,6 +96,7 @@
     H.withJokers = !opts || opts.withJokers !== false;
     S.cardCount = H.cardCount; S.withJokers = H.withJokers;
     hostAddPlayer(Net.myId, name);
+    keepAwake();   // 房主保持屏幕常亮，防止锁屏杀房间
 
     Net.on('sig', ok => { S.sigLost = !ok; render(); });   // 信令断线提示
 
@@ -323,7 +335,7 @@
     }
     if (S.round === 0) {
       el.statusBar.textContent = S.isHost
-        ? '你是房主，人齐后点"开始发牌"'
+        ? '你是房主，人齐后点"开始发牌"（本页保持前台，别锁屏）'
         : '等待房主发牌…';
       return;
     }
