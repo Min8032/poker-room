@@ -6,12 +6,18 @@ window.Net = (() => {
   // 房间 ID 前缀，避免与其他使用 PeerJS 公共云的应用冲突
   const PREFIX = 'poker3m-';
 
-  // ICE 服务器：国内可用的 STUN 优先，谷歌 STUN 兜底
+  // ICE 服务器：国内 STUN 优先；OpenRelay 免费公共 TURN 中继兜底
+  // （移动网络/跨运营商等对称 NAT 场景打洞必失败，必须靠 TURN 中继）
   const ICE_SERVERS = [
     { urls: ['stun:stun.miwifi.com:3478'] },
     { urls: ['stun:stun.hitv.com:3478'] },
     { urls: ['stun:stun.l.google.com:19302'] },
     { urls: ['stun:stun1.l.google.com:19302'] },
+    { urls: ['stun:stun.relay.metered.ca:80'] },
+    { urls: ['turn:global.relay.metered.ca:80'], username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: ['turn:global.relay.metered.ca:80?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: ['turn:global.relay.metered.ca:443'], username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: ['turns:global.relay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' },
   ];
 
   let peer = null;
@@ -101,12 +107,36 @@ window.Net = (() => {
       hostMode = false;
       let settled = false;
       let retries = 0;
+      let attemptTimer = null;
       peer = newPeer();
 
+      const fail = msg => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(attemptTimer);
+        reject(new Error(msg));
+      };
+
+      // 失败重试：最多 3 次，间隔 1.5 秒
+      const retryOrFail = msg => {
+        if (settled) return;
+        clearTimeout(attemptTimer);
+        if (retries < 3) { retries++; setTimeout(connectToHost, 1500); }
+        else fail(msg);
+      };
+
       const connectToHost = () => {
+        if (settled) return;
+        clearTimeout(attemptTimer);
+        try { if (hostConn) hostConn.close(); } catch (e) {}
         hostConn = peer.connect(PREFIX + code, { reliable: true });
 
+        // 单次尝试 8 秒超时：打洞失败/僵尸注册时不会无限卡在"加入中…"
+        attemptTimer = setTimeout(
+          () => retryOrFail('连接超时：双方网络受限（如移动网络+VPN），请切换网络后重试'), 8000);
+
         hostConn.on('open', () => {
+          clearTimeout(attemptTimer);
           hostConn.send({ t: 'join', name });
           settled = true;
           resolve();
@@ -120,21 +150,18 @@ window.Net = (() => {
           else if (data.t === 'closed') emit('closed');
         });
 
-        // 加入成功后断线才算"房间关闭"；重试中的失败由 error 处理
+        // 加入成功后断线才算"房间关闭"；重试中的失败由超时/error 处理
         watchDead(hostConn, () => { if (settled) emit('closed'); });
       };
 
       peer.on('error', err => {
         if (settled) return;
-        // 房间注册可能有延迟/抖动：peer-unavailable 时隔 2 秒重试，最多 3 次
-        if (err.type === 'peer-unavailable' && retries < 3) {
-          retries++;
-          setTimeout(connectToHost, 2000);
+        // 房间注册可能有延迟/抖动：peer-unavailable 也走重试
+        if (err.type === 'peer-unavailable') {
+          retryOrFail('房间不存在，请检查房间密码（或让房主确认页面还开着）');
           return;
         }
-        settled = true;
-        if (err.type === 'peer-unavailable') reject(new Error('房间不存在，请检查房间密码（或让房主确认页面还开着）'));
-        else reject(new Error('网络错误：' + err.type));
+        fail('网络错误：' + err.type);
       });
 
       peer.on('open', () => {
