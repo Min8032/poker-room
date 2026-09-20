@@ -433,9 +433,9 @@
     const v = readInputs(); if (!v) return;
     el.btnCreate.disabled = true; el.btnJoin.disabled = true;
     el.lobbyMsg.textContent = '加入中…';
+    clientSetup(v.code);   // 先注册消息回调：MQTT 模式下 roster/deal 可能与加入成功同时到达
     try {
       await Net.joinRoom(v.code, v.name);
-      clientSetup(v.code);
       showScreen('table');
       render();
     } catch (e) {
