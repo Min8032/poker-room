@@ -316,8 +316,11 @@
 
     if (S.round === 0) {
       if (S.isHost) {
-        el.btnRestart.disabled = false;
-        el.btnRestart.textContent = '开始发牌';
+        const enough = S.players.length >= 2;   // 至少 2 人才可开局
+        el.btnRestart.disabled = !enough;
+        el.btnRestart.textContent = enough
+          ? '开始发牌'
+          : '等待玩家加入（' + S.players.length + ' 人）';
       } else {
         el.btnRestart.disabled = true;
         el.btnRestart.textContent = '等待房主发牌';
@@ -334,9 +337,13 @@
       return;
     }
     if (S.round === 0) {
-      el.statusBar.textContent = S.isHost
-        ? '你是房主，人齐后点"开始发牌"（本页保持前台，别锁屏）'
-        : '等待房主发牌…';
+      if (S.isHost) {
+        el.statusBar.textContent = S.players.length >= 2
+          ? '你是房主，人齐后点"开始发牌"（本页保持前台，别锁屏）'
+          : '房间已建好，把密码告诉小伙伴，至少 1 人加入后才能开始发牌';
+      } else {
+        el.statusBar.textContent = '等待房主发牌…';
+      }
       return;
     }
     const total = S.players.length;
