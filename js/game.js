@@ -97,6 +97,7 @@
     S.cardCount = H.cardCount; S.withJokers = H.withJokers;
     hostAddPlayer(Net.myId, name);
     keepAwake();   // 房主保持屏幕常亮，防止锁屏杀房间
+    hostBroadcastRoster();   // 让房主本地立即看到自己（人数统计/按钮状态）
 
     Net.on('sig', ok => { S.sigLost = !ok; render(); });   // 信令断线提示
 

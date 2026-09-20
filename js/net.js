@@ -108,7 +108,8 @@ window.Net = (() => {
         });
       });
 
-      client.on('error', err => { if (!settled) { clearTimeout(timer); fail('网络错误：' + err.message); } });
+      // 初始连接的瞬时错误（如 connack timeout）交给 mqtt.js 自动重连，由总超时兜底
+      client.on('error', () => {});
 
       client.on('message', (topic, payload) => {
         const data = parse(payload);
@@ -174,7 +175,8 @@ window.Net = (() => {
         });
       });
 
-      client.on('error', err => { if (!settled) { clearTimeout(timer); fail('网络错误：' + err.message); } });
+      // 初始连接的瞬时错误（如 connack timeout）交给 mqtt.js 自动重连，由总超时兜底
+      client.on('error', () => {});
 
       client.on('message', (topic, payload) => {
         const data = parse(payload);
